@@ -10,11 +10,12 @@ from bokeh.palettes import RdYlBu3
 from bokeh.plotting import figure, curdoc
 from bokeh.models import ColumnDataSource
 
-SIZE = 200
-START_SEED = 4000
+SIZE = 100
+START_SEED = 2000
+CELL_SIZE = 2
 
 # create a plot and style its properties
-p = figure(x_range=(0, SIZE), y_range=(0, SIZE), toolbar_location=None)
+p = figure(x_range=(0, 200), y_range=(0, 200), toolbar_location=None)
 p.border_fill_color = 'black'
 p.background_fill_color = 'black'
 p.outline_line_color = None
@@ -22,40 +23,68 @@ p.grid.grid_line_color = None
 
 alive_source = ColumnDataSource(data=dict(x=[0], y=[0]))
 
-p.rect(x='x', y='y', width=1, height=1, color='white', source=alive_source)
+p.rect(x='x', y='y', width=CELL_SIZE, height=CELL_SIZE, color='white', source=alive_source)
 
 doc = curdoc()
 
 i = 0
-# create a callback that will add a number in a random location
-start_set = set()
+# create a callback that will add a number in a random location\
+grid = [[0 for y in range(SIZE)] for x in range(SIZE)]
 for x in range(START_SEED):
-    start_set.add((randint(0, SIZE), randint(0, SIZE)))
+    x_pos = randint(0, SIZE - 1)
+    y_pos = randint(0, SIZE - 1)
+    grid[x_pos][y_pos] = 1
 
-grid = []
-for x in range(SIZE):
-    grid.append([])
-    for y in range(SIZE):
-        pass
+def grid_to_ds(g):
+    x_list = []
+    y_list = []
+    for y, row in enumerate(g):
+        for x, c in enumerate(row):
+            if c == 1:
+                x_list.append(x * CELL_SIZE)
+                y_list.append(y * CELL_SIZE)
+    return x_list, y_list
 
-start_x = [x for x, _ in start_set]
-start_y = [y for _, y in start_set]
+def mutate_grid(g):
+    new_grid = []
+    for y, row in enumerate(g):
+        new_grid.append([])
+        for x, col in enumerate(row):
+            N = g[(y + 1) % SIZE][x]
+            NE = g[(y + 1) % SIZE][(x + 1) % SIZE]
+            E = g[y][(x + 1) % SIZE]
+            SE = g[(y - 1) % SIZE][(x + 1) % SIZE]
+            S = g[(y - 1) % SIZE][x]
+            SW = g[(y - 1) % SIZE][(x - 1) % SIZE]
+            W = g[y][(x - 1) % SIZE]
+            NW = g[(y + 1) % SIZE][(x - 1) % SIZE]
+            count = N + NE + E + SE + S + SW + W + NW
+            if col == 1:
+                if count in [2, 3]:
+                    new_grid[y].append(1)
+                else:
+                    new_grid[y].append(0)
+            else:
+                if count == 3:
+                    new_grid[y].append(1)
+                else:
+                    new_grid[y].append(0)
 
-x = start_x
-y = start_y
+    return new_grid
 
-
-def get_next_gen(x, y):
-    return x, y
+#
+# def get_next_gen(x, y):
+#     return x, y
 
 def callback():
-    global x, y
+    global grid
+    x, y = grid_to_ds(grid)
     alive_source.stream({
         'x': x,
         'y': y
-    })
+    }, rollover=2)
 
-    x, y = get_next_gen(x, y)
+    grid = mutate_grid(grid)
 
 doc.add_root(p)
 
